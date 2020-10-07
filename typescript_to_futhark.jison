@@ -122,11 +122,15 @@ statement
     ;
 
 statement_:
-	return_statement ";" {$$ = $1;}
-    | "switch" "(" e ")" "{" case_statements "}" {$$ = ["match ",$3," ",$6].join("");}
+	bracket_statement
     | if_statement
 	;
-	
+
+bracket_statement:
+	return_statement ";" {$$ = $1;}
+    | "switch" "(" e ")" "{" case_statements "}" {$$ = ["match ",$3," ",$6].join("");}
+    ;
+
 top_level_statement:
 	"function" func {$$ = $2;}
     | "class" module_name "{" class_statements "}" {$$ = "module "+$2+" = {"+$4+"}";}
@@ -271,10 +275,10 @@ function_call_parameters: e "," function_call_parameters {$$ = $1+" "+$3;} | e {
 
 elif: "else" "if" "(" e ")" bracket_statements elif {$$ = ["else if ",$4," then ",$6,$7].join(" ");} | "else" bracket_statements {$$ = ["else ",$2].join("");};
 if_statement:
-"if" "(" e ")" bracket_statements elif {$$ = ["if ",$3," then ",$5,$6].join(" ");}
-|  "if" "(" e ")" bracket_statements {$$ = ["if ",$3," then ",$5].join(" ");};
+"if" "(" e ")" bracket_statements elif {$$ = ["if ",$3," then ",$5,$6].join(" ");};
+
 identifiers: var_name "," identifiers {$$ = $1+","+$3;} | var_name {$$ = $1;};
-bracket_statements: "{" statement "}" {$$= $2;} | return_statement ";" {$$ = $1;};
+bracket_statements: "{" statement "}" {$$= $2;} | bracket_statement {$$ = $1;};
 
 type: type "[" "]" {$$ = "[]"+$1;} | "Array" "<" type ">" {$$ = "[]"+$3;} | "[" tuple_type_ "]" {$$="("+$2+")";} | type_;
 type_:"boolean" {$$= "bool";}|"number"{$$= "f32";}|"string"{$$="[]u8"} | var_name {$$ = $1;};
