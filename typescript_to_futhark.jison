@@ -35,6 +35,7 @@
 "var"                 return 'var'
 "let"                 return 'let'
 "of"                  return 'of'
+"enum"                return 'enum'
 "Math"                return "Math"
 "number"              return 'number'
 "boolean"             return 'boolean'
@@ -99,13 +100,17 @@
 
 %% /* language grammar */
 
-var_name: IDENTIFIER {$$ = "var_"+$1;};
-module_name: IDENTIFIER {$$ = "Module_"+$1;};
+var_name: IDENTIFIER {
+	if($1[0] === $1[0].toUpperCase())
+		$$ = "Module_"+$1;
+	else
+		$$ = "var_"+$1;
+};
 
 expressions: top_level_statements EOF {return $1};
 
 case_statement: "case" e ":" statement "break" ";" {$$ = ["case",$2," -> ",$4].join(" ")};
-case_statements_: case_statement case_statements_ {$$ = $1+$2;} | case_statement {$$ =
+case_statements_: case_statements_ case_statement {$$ = $1+$2;} | case_statement {$$ =
  $1;};
 case_statements: case_statements_ "default" ":" statement {$$ = $1+["default:",$4].join("");} | case_statements_;
 
@@ -113,7 +118,7 @@ case_statements: case_statements_ "default" ":" statement {$$ = $1+["default:",$
 access_modifier: "public" | "private";
 
 top_level_statements: top_level_statements top_level_statement {$$ = $1+"\\n"+$2;} | top_level_statement {$$ =
- $1;} | create_var ";" {$$ = $1;};
+ $1;};
  
 statement
     :
@@ -132,13 +137,15 @@ bracket_statement:
     ;
 
 top_level_statement:
-	"function" func {$$ = $2;}
-    | "class" module_name "{" class_statements "}" {$$ = "module "+$2+" = {"+$4+"}";}
+	create_var ";" {$$ = $1;}
+	| "function" func {$$ = $2;}
+    | "class" var_name "{" class_statements "}" {$$ = "module "+$2+" = {"+$4+"}";}
     | "class" IDENTIFIER "<" class_type_parameters ">" "{" class_statements "}" {$$ = ["module ",$2," = {",$4," ",$7,"}"].join("");}
-    | "class" module_name "extends" module_name "{" class_statements "}" {$$ = ["module ",$2," = {",$6," open ",$4,"}"].join("");}
-    | "interface" module_name "{" class_statements "}" {$$ = "module type "+$2+" = {"+$4+"}";}
-    | "interface" module_name "extends" module_name "{" class_statements "}" {$$ = ["module type ",$2," = {",$6," include ",$4,"}"].join("");}
-    | "interface" IDENTIFIER "<" class_type_parameters ">" "{" class_statements "}" {$$ = ["module type ",$2," = {",$4," ",$7,"}"].join("");}
+    | "class" var_name "extends" var_name "{" class_statements "}" {$$ = ["module ",$2," = {",$6," open ",$4,"}"].join("");}
+    | "enum" IDENTIFIER "{" enum_statements "}" {$$ = ["type",$2,"=",$4].join(" ");}
+    | "interface" var_name "{" module_type_statements "}" {$$ = "module type "+$2+" = {"+$4+"}";}
+    | "interface" var_name "extends" var_name "{" module_type_statements "}" {$$ = ["module type ",$2," = {",$6," include ",$4,"}"].join("");}
+    | "interface" IDENTIFIER "<" class_type_parameters ">" "{" module_type_statements "}" {$$ = ["module type ",$2," = {",$4," ",$7,"}"].join("");}
 	;
 	
 func:
@@ -172,7 +179,7 @@ create_var:
 
 e
     :
-     e "?" e ":" e {$$ = ["(if ",$1," then ",$3," else ",$5,")"].join("")}
+    e "?" e ":" e {$$ = ["(if ",$1," then ",$3," else ",$5,")"].join("")}
     |e '||' e
         {$$ = [$1,$2,$3].join(" ");}
     |e '|' e
@@ -210,22 +217,20 @@ e
 
 not_expr: "!" dot_expr {$$ = "!"+$2;} | dot_expr {$$ = $1;};
 
-
-dot_expr: parentheses_expr  "." dot_expr  {$$ = $1+"."+$3;} | parentheses_expr {$$ =
+dot_expr: dot_expr  "." parentheses_expr {$$ = $1+"."+$3;} | parentheses_expr {$$ =
  $1;};
 
 access_array: parentheses_expr "[" e "]" {$$ = $1+"["+$3+"]";};
 
-
 parentheses_expr:
     "function" "(" parameters ")" ":" type "{" statement "}" {$$ = ["(\\",$3,":",$6,"->",$8,")"].join("");}
     | "function" "(" parameters ")" "{" statement "}" {$$ = ["(\\",$3,"->",$6,")"].join("");}
-    | var_name "(" ")" {$$= $1;} //call a function
-    | "new" module_name "(" exprs ")" {$$= [$2,"(",$4,")"].join("");}
+    | var_name "(" ")" {$$= "("+$1+")";} //call a function
+    | "new" var_name "(" exprs ")" {$$= [$2,"(",$4,")"].join("");}
     | var_name "(" function_call_parameters ")" {$$= ["(",$1," ",$3,")"].join("");}
     | "Number" "(" exprs ")" {$$= ["float(",$3,")"].join("");}
-    | "Math" "." var_name "(" e ")" {$$ = $3+"("+$5+")";}
-    | "Math" "." var_name {
+    | "Math" "." IDENTIFIER "(" e ")" {$$ = "(f32."+$3+" "+$5+")";}
+    | "Math" "." IDENTIFIER {
 		if($3 == "E"){
 			$$ = Math.E;
 		}
@@ -243,11 +248,8 @@ parentheses_expr:
 		}
 	}
 	| access_array
-    | '(' e ')' {$$ = "("+$1+")";}
-    | parentheses_expr_;
-
-parentheses_expr_:
-    "{" "}" {$$ = "{}";}
+    | '(' e ')' {$$ = "("+$1+")";} 
+    | "{" "}" {$$ = "{}";}
     | "{" key_values "}" {$$ = "{"+$2+"}";}
     | "[" "]" {$$ = "[]";}
     | "[" exprs "]" {$$ = "["+$2+"]";}
@@ -259,34 +261,37 @@ parentheses_expr_:
     | STRING_LITERAL
         {$$ = yytext;};
 
-key_values: key_values "," key_value {$$ = $1+","+$3;} | key_value {$$ = $1;};
-key_value: var_name ":" e {$$ = $1+":"+$3};
+arrow_function: "(" parameters ")" '=>' e {$$ = ["(\\",$2,"->",$5,")"].join("");};
 
+key_values: key_values "," key_value {$$ = $1+","+$3;} | key_value {$$ = $1;};
+key_value: var_name ":" e {$$ = $1+"="+$3};
 
 parameter:
 	var_name {$$ = $1;}
 	| var_name ":" type {$$ = "("+$1+":"+$3+")";};
 	
-parameters: parameter "," parameters {$$ = $1+" "+$3;} | parameter {$$ =
+parameters: parameters "," parameter {$$ = $1+" "+$3;} | parameter {$$ =
  $1;} | {$$ = ""};
-exprs: e "," exprs {$$ = $1+","+$3;} | e {$$ = $1;};
+exprs: exprs "," e {$$ = $1+","+$3;} | e {$$ = $1;};
 
-function_call_parameters: e "," function_call_parameters {$$ = $1+" "+$3;} | e {$$ = $1;};
+function_call_parameters: function_call_parameters "," e {$$ = $1+" "+$3;} | e {$$ = $1;};
 
-elif: "else" "if" "(" e ")" bracket_statements elif {$$ = ["else if ",$4," then ",$6,$7].join(" ");} | "else" bracket_statements {$$ = ["else ",$2].join("");};
+elif: "else" "if" "(" e ")" bracket_statements elif {$$ = ["else if",$4,"then",$6,$7].join(" ");} | "else" bracket_statements {$$ = ["else ",$2].join("");};
 if_statement:
-"if" "(" e ")" bracket_statements elif {$$ = ["if ",$3," then ",$5,$6].join(" ");};
+"if" "(" e ")" bracket_statements elif {$$ = ["if ",$3,"then",$5,$6].join(" ");};
 
-identifiers: var_name "," identifiers {$$ = $1+","+$3;} | var_name {$$ = $1;};
+identifiers: identifiers "," var_name {$$ = $1+","+$3;} | var_name {$$ = $1;};
 bracket_statements: "{" statement "}" {$$= $2;} | bracket_statement {$$ = $1;};
 
 type: type "[" "]" {$$ = "[]"+$1;} | "Array" "<" type ">" {$$ = "[]"+$3;} | "[" tuple_type_ "]" {$$="("+$2+")";} | type_;
 type_:"boolean" {$$= "bool";}|"number"{$$= "f32";}|"string"{$$="[]u8"} | var_name {$$ = $1;};
 
-type_parameters: var_name "," type_parameters {$$ = "'"+$1+" "+$3;} | var_name {$$ = "'"+$1;}; 
-class_type_parameters: var_name "," class_type_parameters {$$ = "type "+$1+" "+$3;} | var_name {$$ = "type "+$1;};
+type_parameters: type_parameters "," var_name {$$ = $1+" '"+$3;} | var_name {$$ = "'"+$1;}; 
+class_type_parameters: class_type_parameters "," var_name {$$ = $1+" type "+$3;} | var_name {$$ = "type "+$1;};
 
-tuple_type_: type_ "," type_parameters {$$ = $1+","+$3;} | type_ {$$ = $1;}; 
+enum_statements: enum_statements "," var_name {$$ = $1+" | #"+$3;} | var_name {$$ = "#"+$1;}; 
+
+tuple_type_: tuple_type_ "," type  {$$ = $1+","+$3;} | type {$$ = $1;}; 
 
 class_statement:
 	var_name ":" type ";" {$$ = "val "+$1+":"+$3;}
@@ -294,5 +299,12 @@ class_statement:
 	| "static" func {$$ = $2;}
 	;
 
-class_statements: class_statement class_statements {$$ = $1+"\\n"+$2;} | class_statement {$$ =
+class_statements: class_statements class_statement {$$ = $1+"\\n"+$2;} | class_statement {$$ =
+ $1;};
+ 
+module_type_statement:
+	var_name ":" type ";" {$$ = "val "+$1+":"+$3;}
+	;
+
+module_type_statements: module_type_statements module_type_statement {$$ = $1+"\\n"+$2;} | module_type_statement {$$ =
  $1;};
