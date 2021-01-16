@@ -225,9 +225,7 @@ access_array: parentheses_expr "[" e "]" {$$ = $1+"["+$3+"]";};
 parentheses_expr:
     "function" "(" parameters ")" ":" type "{" statement "}" {$$ = ["(\\",$3,":",$6,"->",$8,")"].join("");}
     | "function" "(" parameters ")" "{" statement "}" {$$ = ["(\\",$3,"->",$6,")"].join("");}
-    | var_name "(" ")" {$$= "("+$1+")";} //call a function
     | "new" var_name "(" exprs ")" {$$= [$2,"(",$4,")"].join("");}
-    | var_name "(" function_call_parameters ")" {$$= ["(",$1," ",$3,")"].join("");}
     | "Number" "(" exprs ")" {$$= ["float(",$3,")"].join("");}
     | "Math" "." IDENTIFIER "(" e ")" {$$ = "(f32."+$3+" "+$5+")";}
     | "Math" "." IDENTIFIER {
@@ -257,9 +255,17 @@ parentheses_expr:
         {$$ = yytext;}
     | INTEGER
         {$$ = $1+".0";}
-    | var_name
     | STRING_LITERAL
-        {$$ = yytext;};
+        {$$ = yytext;}
+    | callable_expr;
+
+callable_expr:
+	callable_expr "(" ")" {$$= ["(",$1,")"].join("");}
+	| callable_expr "(" function_call_parameters ")" {$$= ["(",$1," ",$3,")"].join("");}
+	| var_name
+        {$$ = yytext+"!";}
+    | '(' e ')' {$$ = "("+$2+")";}
+    ;
 
 arrow_function: "(" parameters ")" '=>' e {$$ = ["(\\",$2,"->",$5,")"].join("");};
 
