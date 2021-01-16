@@ -246,7 +246,6 @@ parentheses_expr:
 		}
 	}
 	| access_array
-    | '(' e ')' {$$ = "("+$1+")";} 
     | "{" "}" {$$ = "{}";}
     | "{" key_values "}" {$$ = "{"+$2+"}";}
     | "[" "]" {$$ = "[]";}
@@ -263,7 +262,7 @@ callable_expr:
 	callable_expr "(" ")" {$$= ["(",$1,")"].join("");}
 	| callable_expr "(" function_call_parameters ")" {$$= ["(",$1," ",$3,")"].join("");}
 	| var_name
-        {$$ = yytext+"!";}
+        {$$ = yytext;}
     | '(' e ')' {$$ = "("+$2+")";}
     ;
 
